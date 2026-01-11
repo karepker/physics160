@@ -109,6 +109,75 @@ class Spring:
             self.constant = y
 
 
+class Particle:
+    """Wrapper for a VPython sphere with physics properties."""
+    def __init__(self, visual, velocity, mass):
+        self.visual = visual  # The VPython sphere
+        self.velocity = velocity
+        self.mass = mass
+        self.springs = []
+        self.update_method = ""
+        self.stored_force = None
+        self.momentum = mass * velocity
+
+    @property
+    def pos(self):
+        return self.visual.pos
+
+    @pos.setter
+    def pos(self, value):
+        self.visual.pos = value
+
+    @property
+    def radius(self):
+        return self.visual.radius
+
+    @radius.setter
+    def radius(self, value):
+        self.visual.radius = value
+
+    @property
+    def color(self):
+        return self.visual.color
+
+    @color.setter
+    def color(self, value):
+        self.visual.color = value
+
+
+class Club:
+    """Wrapper for a VPython box with physics properties."""
+    def __init__(self, visual, velocity):
+        self.visual = visual  # The VPython box
+        self.velocity = velocity
+        self.norm = None
+        self.point = None
+
+    @property
+    def pos(self):
+        return self.visual.pos
+
+    @pos.setter
+    def pos(self, value):
+        self.visual.pos = value
+
+    @property
+    def axis(self):
+        return self.visual.axis
+
+    @axis.setter
+    def axis(self, value):
+        self.visual.axis = value
+
+    @property
+    def length(self):
+        return self.visual.length
+
+    @length.setter
+    def length(self, value):
+        self.visual.length = value
+
+
 ##################################################################
 ## GEODESIC SPHERE CREATION, by Adrian Rossiter, adapted by Kar Epker
 ##################################################################
@@ -331,9 +400,9 @@ def connect_layers(particles, layers, modulus):
                 raise AssertionError("two points in the same layer are trying to be connected")
             
             elif distance < threshold: # they are neighbors
-                
-                particles[outer]._springs.append(Spring(inner, "nested", distance, modulus, True))
-                particles[inner]._springs.append(Spring(outer, "nested", distance, modulus, True))
+
+                particles[outer].springs.append(Spring(inner, "nested", distance, modulus, True))
+                particles[inner].springs.append(Spring(outer, "nested", distance, modulus, True))
         
 
 # connect the adjacent vertices within each layer to each other 
@@ -356,9 +425,9 @@ def connect_neighbors(particles, start, modulus):
                 continue
             
             elif distance < threshold: # they are neighbors
-                
+
                 # although the relation is symmetric, only add one side for speed and coding ease
-                particles[outer]._springs.append(Spring(inner, "neighbor", distance, modulus, True))
+                particles[outer].springs.append(Spring(inner, "neighbor", distance, modulus, True))
          
 
 def draw_sphere(points, particle_color, add_label = False):
@@ -369,16 +438,10 @@ def draw_sphere(points, particle_color, add_label = False):
 
     for i in range(points.shape[0]):
         point = points[i]
-        s = sphere(radius = PARTICLE_RADIUS, pos = vector(point[0], point[1], point[2]),
-                   color = particle_color)
-        # Set custom physics attributes after creation
-        s._velocity = PARTICLE_V0
-        s._mass = PARTICLE_MASS
-        s._springs = []
-        s._update = ""
-        s._store = None
-        s._momentum = s._mass * s._velocity
-        particles.append(s)
+        visual = sphere(radius = PARTICLE_RADIUS, pos = vector(point[0], point[1], point[2]),
+                        color = particle_color)
+        particle = Particle(visual, PARTICLE_V0, PARTICLE_MASS)
+        particles.append(particle)
 
         # label the points
         if DEBUG and LABEL:
@@ -474,7 +537,7 @@ def make_curves(particles):
         particle = particles[outer]
         curves.append([])
         
-        for spring in particle._springs:
+        for spring in particle.springs:
 
             # determine color of curve
             curve_color = color.magenta
@@ -493,9 +556,9 @@ def reset():
 
     # make the particle and club
     particles = make_model()
-    club = box(length = CLUB_DEPTH, width = CLUB_SIDE, height = CLUB_SIDE,
-               color = CLUB_COLOR, pos = CLUB_R0)
-    club._velocity = CLUB_V0
+    club_visual = box(length = CLUB_DEPTH, width = CLUB_SIDE, height = CLUB_SIDE,
+                      color = CLUB_COLOR, pos = CLUB_R0)
+    club = Club(club_visual, CLUB_V0)
     get_club_plane(club)
 
     if CURVES: # make curves if drawing curves
@@ -518,34 +581,34 @@ def reset():
 def get_club_plane(club):
 
     # special case for if atan() is infinite
-    if club._velocity.x == 0:
-        club._norm = vector(cos(LOFT), sin(LOFT), 0)
+    if club.velocity.x == 0:
+        club.norm = vector(cos(LOFT), sin(LOFT), 0)
 
     # for any other case of atan()
     else:
-        phi = atan(club._velocity.y/club._velocity.x)
-        club._norm = vector(1, 0, 0) # assume x component is 1
-        club._norm.y = tan(radians(LOFT) - phi) * club._norm.x
-        club._norm = norm(club._norm)
+        phi = atan(club.velocity.y/club.velocity.x)
+        club.norm = vector(1, 0, 0) # assume x component is 1
+        club.norm.y = tan(radians(LOFT) - phi) * club.norm.x
+        club.norm = norm(club.norm)
 
     # set visible attributes
-    club._point = club.pos
-    club.axis = club._norm
+    club.point = club.pos
+    club.axis = club.norm
     club.length = CLUB_DEPTH
 
 # general function for the momentum principle
 def update_momentum(particle, Fnet, dt):
 
-    particle._momentum += Fnet * dt
-    particle._velocity = particle._momentum/particle._mass
+    particle.momentum += Fnet * dt
+    particle.velocity = particle.momentum/particle.mass
     old_pos = particle.pos
-    particle.pos += particle._velocity * dt
+    particle.pos += particle.velocity * dt
 
 # update the position/properties of the particle based on the club's position
 def update_club(particle, club):
     particle.pos = find_nearest_point(particle.pos, club)
-    particle._velocity = club._velocity
-    particle._momentum = particle._mass * particle._velocity
+    particle.velocity = club.velocity
+    particle.momentum = particle.mass * particle.velocity
 
 # find nearest point on the plane of the club to particle's position
 # solve a(x + at) + b(y + bt) + c(z + ct) = d for t
@@ -554,13 +617,13 @@ def update_club(particle, club):
 def find_nearest_point(point, club):
     
     # compute d and t
-    d = dot(club._norm, club.pos)
-    t = (d - (dot(club._norm, point)))/mag2(club._norm)
+    d = dot(club.norm, club.pos)
+    t = (d - (dot(club.norm, point)))/mag2(club.norm)
 
     # solve for point
-    xp = point.x + club._norm.x * t
-    yp = point.y + club._norm.y * t
-    zp = point.z + club._norm.z * t
+    xp = point.x + club.norm.x * t
+    yp = point.y + club.norm.y * t
+    zp = point.z + club.norm.z * t
 
     return vector(xp, yp, zp)
 
@@ -573,7 +636,7 @@ def determine_update_method(particles, club, dt):
         
         # calculate force from each spring and put in array
         forces = []
-        for spring in particle._springs:
+        for spring in particle.springs:
             stretch = mag(particle.pos - particles[spring.neighbor].pos) - spring.rest
             Fspring = -spring.constant * stretch * norm(particle.pos - particles[spring.neighbor].pos)
             forces.append(Fspring)
@@ -585,21 +648,21 @@ def determine_update_method(particles, club, dt):
         Fnet *= FNET_DAMP
 
         # calculate the positions of the particle and club one dt in the future
-        calc_particle_pos = particle.pos + ((particle._momentum + (Fnet * dt))/particle._mass * dt)
-        calc_club_point = club.pos + club._velocity * dt
+        calc_particle_pos = particle.pos + ((particle.momentum + (Fnet * dt))/particle.mass * dt)
+        calc_club_point = club.pos + club.velocity * dt
 
         # test for particle contact with plane and update accordingly
-        actual = (dot(calc_particle_pos - calc_club_point, club._norm))/mag(club._norm)
+        actual = (dot(calc_particle_pos - calc_club_point, club.norm))/mag(club.norm)
         contact_threshold = particle.radius * CONTACT_TOLERANCE
 
         # if the particle is behind the plane
         if actual < -contact_threshold:
-            particle._update = "club"
+            particle.update_method = "club"
 
         # otherwise
         else:
-            particle._update = "momentum"
-            particle._store = Fnet
+            particle.update_method = "momentum"
+            particle.stored_force = Fnet
         
 
 # animate a given particle
@@ -608,26 +671,26 @@ def animate_particles(particles, club, dt):
     # for convenience
     for particle in particles:
 
-        # INVARIANT: particle._update must be either "momentum" or "club"
-        if DEBUG and not (particle._update == "momentum" or particle._update == "club"):
-            raise AssertionError("particle update = " + particle._update)
+        # INVARIANT: particle.update_method must be either "momentum" or "club"
+        if DEBUG and not (particle.update_method == "momentum" or particle.update_method == "club"):
+            raise AssertionError("particle update = " + particle.update_method)
         
         # update based on momentum
-        if particle._update == "momentum":
-            update_momentum(particle, particle._store, dt)
+        if particle.update_method == "momentum":
+            update_momentum(particle, particle.stored_force, dt)
 
         # update based on the club position
-        else: # particle._update == "club"
+        else: # particle.update_method == "club"
             update_club(particle, club)
 
         # clean the particle's update and store variables
-        particle._update = ""
-        particle._store = None
+        particle.update_method = ""
+        particle.stored_force = None
 
 
 # animate the club
 def animate_club(club, dt):
-    club.pos += club._velocity * dt
+    club.pos += club.velocity * dt
 
 # update the position of each of the curves
 def draw_curves(particles, curves):
@@ -636,8 +699,8 @@ def draw_curves(particles, curves):
     for outer in range(len(particles)):
         particle = particles[outer]
 
-        for inner in range(len(particle._springs)):
-            spring = particle._springs[inner]
+        for inner in range(len(particle.springs)):
+            spring = particle.springs[inner]
 
             # update position of corresponding curve using modern VPython API
             current = curves[outer][inner]
@@ -684,9 +747,9 @@ def get_com(particles):
     for particle in particles:
 
         # perform appopriate calculations
-        r += particle._mass * particle.pos
-        v += particle._mass * particle._velocity
-        total_mass += particle._mass
+        r += particle.mass * particle.pos
+        v += particle.mass * particle.velocity
+        total_mass += particle.mass
 
     # return the velocity of the center of mass
     return {'vcom': v/total_mass, 'rcom': r/total_mass}
@@ -729,7 +792,7 @@ def plot(particles, centers, changes, omegas, last_vec, t, dt):
         spin.plot(pos = (t, omega))
     
     # take care of velocity plotting
-    centers.append(center._velocity)
+    centers.append(center.velocity)
     if len(centers) > 2:
         old_slope = mag(centers[-2]) - mag(centers[-3])
         slope = mag(centers[-1]) - mag(centers[-2])
@@ -738,7 +801,7 @@ def plot(particles, centers, changes, omegas, last_vec, t, dt):
     
     if VELOCITIES:
         v_com.plot(pos = (t, mag(vcom)))
-        v_center.plot(pos = (t, mag(center._velocity)))
+        v_center.plot(pos = (t, mag(center.velocity)))
 
     plot_info = {}
     plot_info['rcom'] = rcom
