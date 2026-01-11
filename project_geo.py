@@ -6,8 +6,10 @@
 ##################################################################
 
 import collections
-from visual import *
-from visual.graph import *
+import math
+from vpython import *
+from numpy import array, append, empty, linspace, ediff1d, average
+#from vpython.graph import *
 
 ##################################################################
 ## CONSTANTS
@@ -63,7 +65,7 @@ CLUB_SIDE = RADIUS * 2.2
 CLUB_R0 = vector(-RADIUS * 1.4, -RADIUS * 0.25, 0.0)
 CLUB_V0 = vector(64.82, 0.0, 0.0)
 CONTACT_TOLERANCE = 1.15 # should be 1 + (%tolerance/100)
-CLUB_COLOR = (0.99, 0.99, 0.99)
+CLUB_COLOR = vector(0.99, 0.99, 0.99)
 LOFT = 0 # Degrees
 
 # appearance
@@ -72,19 +74,19 @@ scene.foreground = color.black
 scene.width = 700
 scene.height = 700
 scene.center = vector(0, 0, 0)
-scene.range = 3/2 * RADIUS * vector(1, 1, 1)
+scene.range = 3/2 * RADIUS
 
 # graphs
-SPIN = False # whether to make the spin graph
+SPIN = True # whether to make the spin graph
 VELOCITIES = True # whether to make the velocity graph
 
-display1 = gdisplay(x = 500, y = 0, width = 600, height = 600, background = color.white,
-                    foreground = color.black, xtitle = "t (s)", ytitle = "velocity (m/s)",
-                    title = "Velocity (m/s) vs. time")
+velocity_graph = graph(width=600, height=300, background=color.white,
+                       foreground=color.black, xtitle="t (s)", ytitle="velocity (m/s)",
+                       title="Velocity (m/s) vs. time")
 
-v_com = gdots(gdisplay = display1, color = color.yellow)
-spin = gdots(gdisplay = display1, color = color.green)
-v_center = gdots(gdisplay = display1, color = color.blue)
+v_com = gdots(graph=velocity_graph, color=color.yellow, label="CoM velocity")
+spin = gdots(graph=velocity_graph, color=color.green, label="spin")
+v_center = gdots(graph=velocity_graph, color=color.blue, label="center velocity")
 
 ##################################################################
 ## CLASSES
@@ -330,8 +332,8 @@ def connect_layers(particles, layers, modulus):
             
             elif distance < threshold: # they are neighbors
                 
-                particles[outer].springs.append(Spring(inner, "nested", distance, modulus, True))
-                particles[inner].springs.append(Spring(outer, "nested", distance, modulus, True))
+                particles[outer]._springs.append(Spring(inner, "nested", distance, modulus, True))
+                particles[inner]._springs.append(Spring(outer, "nested", distance, modulus, True))
         
 
 # connect the adjacent vertices within each layer to each other 
@@ -356,43 +358,31 @@ def connect_neighbors(particles, start, modulus):
             elif distance < threshold: # they are neighbors
                 
                 # although the relation is symmetric, only add one side for speed and coding ease
-                particles[outer].springs.append(Spring(inner, "neighbor", distance, modulus, True))
+                particles[outer]._springs.append(Spring(inner, "neighbor", distance, modulus, True))
          
 
 def draw_sphere(points, particle_color, add_label = False):
-    
+
     # initializations
     labels = []
     particles = []
-    current_point = 0
-    running = False
-    last_stroke = ""
 
-    while current_point < points.shape[0]: # while there are still points to place
+    for i in range(points.shape[0]):
+        point = points[i]
+        s = sphere(radius = PARTICLE_RADIUS, pos = vector(point[0], point[1], point[2]),
+                   color = particle_color)
+        # Set custom physics attributes after creation
+        s._velocity = PARTICLE_V0
+        s._mass = PARTICLE_MASS
+        s._springs = []
+        s._update = ""
+        s._store = None
+        s._momentum = s._mass * s._velocity
+        particles.append(s)
 
-        if scene.kb.keys: # keypress detection
-            stroke = scene.kb.getkey()
-            
-            if stroke == PLAY_STROKE or stroke == STEP_STROKE: # if play/pause or step
-                running = True
-                last_stroke = stroke
-
-        # make a VPython "sphere" object and append to list
-        if running or not DEBUG:
-            point = points[current_point]
-            particles.append(sphere(radius = PARTICLE_RADIUS, pos = vector(point[0], point[1], point[2]),
-                                    velocity = PARTICLE_V0, mass = PARTICLE_MASS, color = particle_color,
-                                    springs = [], update = "", store = None))
-            particles[-1].momentum = particles[-1].mass * particles[-1].velocity
-
-            # label the points
-            if DEBUG and LABEL:
-                labels.append(label(pos = particles[current_point].pos, text = str(int(current_point))))
-
-            # set values for next iteration
-            current_point += 1
-            if last_stroke == STEP_STROKE:
-                running = False
+        # label the points
+        if DEBUG and LABEL:
+            labels.append(label(pos = particles[i].pos, text = str(int(i))))
 
     return particles
 
@@ -484,7 +474,7 @@ def make_curves(particles):
         particle = particles[outer]
         curves.append([])
         
-        for spring in particle.springs:
+        for spring in particle._springs:
 
             # determine color of curve
             curve_color = color.magenta
@@ -498,13 +488,14 @@ def make_curves(particles):
 
 # reset
 def reset():
-    
+
     scene_info = {}
 
     # make the particle and club
     particles = make_model()
     club = box(length = CLUB_DEPTH, width = CLUB_SIDE, height = CLUB_SIDE,
-               color = CLUB_COLOR, pos = CLUB_R0, velocity = CLUB_V0)
+               color = CLUB_COLOR, pos = CLUB_R0)
+    club._velocity = CLUB_V0
     get_club_plane(club)
 
     if CURVES: # make curves if drawing curves
@@ -513,7 +504,7 @@ def reset():
 
     scene_info['particles'] = particles
     scene_info['club'] = club
-    
+
     return scene_info
 
 # end initialization
@@ -527,34 +518,34 @@ def reset():
 def get_club_plane(club):
 
     # special case for if atan() is infinite
-    if club.velocity.x == 0:
-        club.norm = vector(cos(LOFT), sin(LOFT), 0)
+    if club._velocity.x == 0:
+        club._norm = vector(cos(LOFT), sin(LOFT), 0)
 
     # for any other case of atan()
     else:
-        phi = atan(club.velocity.y/club.velocity.x)
-        club.norm = vector(1, 0, 0) # assume x component is 1
-        club.norm.y = tan(radians(LOFT) - phi) * club.norm.x
-        club.norm = norm(club.norm)
+        phi = atan(club._velocity.y/club._velocity.x)
+        club._norm = vector(1, 0, 0) # assume x component is 1
+        club._norm.y = tan(radians(LOFT) - phi) * club._norm.x
+        club._norm = norm(club._norm)
 
     # set visible attributes
-    club.point = club.pos
-    club.axis = club.norm
+    club._point = club.pos
+    club.axis = club._norm
     club.length = CLUB_DEPTH
 
 # general function for the momentum principle
 def update_momentum(particle, Fnet, dt):
 
-    particle.momentum += Fnet * dt
-    particle.velocity = particle.momentum/particle.mass
+    particle._momentum += Fnet * dt
+    particle._velocity = particle._momentum/particle._mass
     old_pos = particle.pos
-    particle.pos += particle.velocity * dt
+    particle.pos += particle._velocity * dt
 
 # update the position/properties of the particle based on the club's position
 def update_club(particle, club):
     particle.pos = find_nearest_point(particle.pos, club)
-    particle.velocity = club.velocity
-    particle.momentum = particle.mass * particle.velocity
+    particle._velocity = club._velocity
+    particle._momentum = particle._mass * particle._velocity
 
 # find nearest point on the plane of the club to particle's position
 # solve a(x + at) + b(y + bt) + c(z + ct) = d for t
@@ -563,13 +554,13 @@ def update_club(particle, club):
 def find_nearest_point(point, club):
     
     # compute d and t
-    d = dot(club.norm, club.pos)
-    t = (d - (dot(club.norm, point)))/mag2(club.norm)
+    d = dot(club._norm, club.pos)
+    t = (d - (dot(club._norm, point)))/mag2(club._norm)
 
     # solve for point
-    xp = point.x + club.norm.x * t
-    yp = point.y + club.norm.y * t
-    zp = point.z + club.norm.z * t
+    xp = point.x + club._norm.x * t
+    yp = point.y + club._norm.y * t
+    zp = point.z + club._norm.z * t
 
     return vector(xp, yp, zp)
 
@@ -582,7 +573,7 @@ def determine_update_method(particles, club, dt):
         
         # calculate force from each spring and put in array
         forces = []
-        for spring in particle.springs:
+        for spring in particle._springs:
             stretch = mag(particle.pos - particles[spring.neighbor].pos) - spring.rest
             Fspring = -spring.constant * stretch * norm(particle.pos - particles[spring.neighbor].pos)
             forces.append(Fspring)
@@ -594,21 +585,21 @@ def determine_update_method(particles, club, dt):
         Fnet *= FNET_DAMP
 
         # calculate the positions of the particle and club one dt in the future
-        calc_particle_pos = particle.pos + ((particle.momentum + (Fnet * dt))/particle.mass * dt)
-        calc_club_point = club.pos + club.velocity * dt
+        calc_particle_pos = particle.pos + ((particle._momentum + (Fnet * dt))/particle._mass * dt)
+        calc_club_point = club.pos + club._velocity * dt
 
         # test for particle contact with plane and update accordingly
-        actual = (dot(calc_particle_pos - calc_club_point, club.norm))/mag(club.norm)
+        actual = (dot(calc_particle_pos - calc_club_point, club._norm))/mag(club._norm)
         contact_threshold = particle.radius * CONTACT_TOLERANCE
 
         # if the particle is behind the plane
         if actual < -contact_threshold:
-            particle.update = "club"
+            particle._update = "club"
 
         # otherwise
         else:
-            particle.update = "momentum"
-            particle.store = Fnet
+            particle._update = "momentum"
+            particle._store = Fnet
         
 
 # animate a given particle
@@ -617,26 +608,26 @@ def animate_particles(particles, club, dt):
     # for convenience
     for particle in particles:
 
-        # INVARIANT: particle.update must be either "momentum" or "club"
-        if DEBUG and not (particle.update == "momentum" or particle.update == "club"):
-            raise AssertionError("particle update = " + particle.update)
+        # INVARIANT: particle._update must be either "momentum" or "club"
+        if DEBUG and not (particle._update == "momentum" or particle._update == "club"):
+            raise AssertionError("particle update = " + particle._update)
         
         # update based on momentum
-        if particle.update == "momentum":
-            update_momentum(particle, particle.store, dt)
+        if particle._update == "momentum":
+            update_momentum(particle, particle._store, dt)
 
         # update based on the club position
-        else: # particle.update == "club"
+        else: # particle._update == "club"
             update_club(particle, club)
 
         # clean the particle's update and store variables
-        particle.update = ""
-        particle.store = None
+        particle._update = ""
+        particle._store = None
 
 
 # animate the club
 def animate_club(club, dt):
-    club.pos += club.velocity * dt
+    club.pos += club._velocity * dt
 
 # update the position of each of the curves
 def draw_curves(particles, curves):
@@ -644,13 +635,14 @@ def draw_curves(particles, curves):
     # for every particle in the array, draw a curve between it and all its neighbors
     for outer in range(len(particles)):
         particle = particles[outer]
-        
-        for inner in range(len(particle.springs)):
-            spring = particle.springs[inner]
 
-            # update position of corresponding curve
+        for inner in range(len(particle._springs)):
+            spring = particle._springs[inner]
+
+            # update position of corresponding curve using modern VPython API
             current = curves[outer][inner]
-            current.pos = [particle.pos, particles[spring.neighbor].pos]
+            current.modify(0, pos=particle.pos)
+            current.modify(1, pos=particles[spring.neighbor].pos)
 
     return curves
 
@@ -692,9 +684,9 @@ def get_com(particles):
     for particle in particles:
 
         # perform appopriate calculations
-        r += particle.mass * particle.pos
-        v += particle.mass * particle.velocity
-        total_mass += particle.mass
+        r += particle._mass * particle.pos
+        v += particle._mass * particle._velocity
+        total_mass += particle._mass
 
     # return the velocity of the center of mass
     return {'vcom': v/total_mass, 'rcom': r/total_mass}
@@ -737,7 +729,7 @@ def plot(particles, centers, changes, omegas, last_vec, t, dt):
         spin.plot(pos = (t, omega))
     
     # take care of velocity plotting
-    centers.append(center.velocity)
+    centers.append(center._velocity)
     if len(centers) > 2:
         old_slope = mag(centers[-2]) - mag(centers[-3])
         slope = mag(centers[-1]) - mag(centers[-2])
@@ -746,7 +738,7 @@ def plot(particles, centers, changes, omegas, last_vec, t, dt):
     
     if VELOCITIES:
         v_com.plot(pos = (t, mag(vcom)))
-        v_center.plot(pos = (t, mag(center.velocity)))
+        v_center.plot(pos = (t, mag(center._velocity)))
 
     plot_info = {}
     plot_info['rcom'] = rcom
@@ -786,21 +778,26 @@ def main_loop():
     particles[11].color = color.black
     particles[11].radius = PARTICLE_RADIUS  * 2
     
-    while True:
+    # Track key state for edge detection
+    prev_keys = set()
 
-        if scene.kb.keys: # keypress detection
-            stroke = scene.kb.getkey()
-            
-            if stroke == PLAY_STROKE: # play/pause
-                running = not running
-                last_stroke = stroke
-                
-            elif stroke == STEP_STROKE: # step
-                running = True
-                last_stroke = stroke
-                
-            elif stroke == BREAK_STROKE: # break
-                break
+    while True:
+        rate(100)  # Control animation speed and allow browser updates
+
+        keys = set(keysdown()) # keypress detection
+        new_keys = keys - prev_keys  # keys just pressed this frame
+        prev_keys = keys
+
+        if PLAY_STROKE in new_keys: # play/pause (toggle)
+            running = not running
+            last_stroke = PLAY_STROKE
+
+        elif STEP_STROKE in new_keys: # step
+            running = True
+            last_stroke = STEP_STROKE
+
+        elif BREAK_STROKE in new_keys: # break
+            break
 
         if running: # animate
 
@@ -841,3 +838,4 @@ def main_loop():
 
 # run it like a boss
 main_loop()
+
