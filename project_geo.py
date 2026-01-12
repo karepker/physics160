@@ -6,19 +6,15 @@
 ##################################################################
 
 from vpython import *
-from numpy import array, append, empty, linspace, ediff1d, average
+from numpy import array, append, empty, ediff1d, average
 
+from config import create_config
 from constants import (
-    DEBUG, LABEL, CURVES, DT_BASIS,
     PLAY_STROKE, STEP_STROKE, BREAK_STROKE,
-    PARTICLE_MASS, USE_BALL, RADIUS,
-    DEFAULT_NEIGHBOR_MODULUS, DEFAULT_LAYER_MODULUS,
-    PIECE_RADII, NEIGHBOR_MODULUS, LAYER_MODULUS,
-    PARTICLE_RADIUS, CURVE_RADIUS, PARTICLE_V0,
-    SHAPE, GEO_M, GEO_N, LAYERS,
-    CLUB_DEPTH, CLUB_SIDE, CLUB_R0, CLUB_V0, CLUB_COLOR,
-    SCENE_BACKGROUND, SCENE_FOREGROUND, SCENE_WIDTH, SCENE_HEIGHT, SCENE_RANGE,
-    SPIN, VELOCITIES,
+    PARTICLE_V0,
+    SHAPE, GEO_M, GEO_N,
+    SCENE_BACKGROUND, SCENE_FOREGROUND,
+    CLUB_COLOR,
 )
 from models import Particle, Club
 from geodesic import make_sphere
@@ -32,63 +28,52 @@ from plotting import setup_graphs, plot
 ## SCENE SETUP
 ##################################################################
 
-scene.background = SCENE_BACKGROUND
-scene.foreground = SCENE_FOREGROUND
-scene.width = SCENE_WIDTH
-scene.height = SCENE_HEIGHT
-scene.center = vector(0, 0, 0)
-scene.range = SCENE_RANGE
+def setup_scene(config):
+    """Configure the VPython scene with settings from config."""
+    scene.background = SCENE_BACKGROUND
+    scene.foreground = SCENE_FOREGROUND
+    scene.width = config.width
+    scene.height = config.height
+    scene.center = vector(0, 0, 0)
+    scene.range = config.scene_range
 
 ##################################################################
 ## INITIALIZATIONS
 ##################################################################
 
-def draw_sphere(points, particle_color, add_label=False):
-
-    # initializations
+def draw_sphere(points, particle_color, config, add_label=False):
+    """Create Particle objects from points array."""
     labels = []
     particles = []
 
     for i in range(points.shape[0]):
         point = points[i]
-        visual = sphere(radius = PARTICLE_RADIUS, pos = vector(point[0], point[1], point[2]),
-                        color = particle_color)
-        particle = Particle(visual, PARTICLE_V0, PARTICLE_MASS)
+        visual = sphere(radius=config.particle_radius,
+                        pos=vector(point[0], point[1], point[2]),
+                        color=particle_color)
+        particle = Particle(visual, PARTICLE_V0, config.particle_mass)
         particles.append(particle)
 
-        # label the points
-        if DEBUG and LABEL:
-            labels.append(label(pos = particles[i].pos, text = str(int(i))))
+        if config.debug and config.labels:
+            labels.append(label(pos=particles[i].pos, text=str(int(i))))
 
     return particles
 
-# get the radius for each layer
-def get_properties():
-    properties = {}
-    piece_radii = []
-    neighbor_modulus = []
-    layer_modulus = []
 
-    # if a ball is given
-    if USE_BALL:
-        properties['piece_radii'] = PIECE_RADII
-        properties['neighbor_modulus'] = NEIGHBOR_MODULUS
-        properties['layer_modulus'] = LAYER_MODULUS
-
-    # default values
-    else:
-        properties['piece_radii'] = linspace(1.0, 0.0, num = LAYERS) * RADIUS
-        properties['neighbor_modulus'] = DEFAULT_NEIGHBOR_MODULUS
-        properties['layer_modulus'] = DEFAULT_LAYER_MODULUS
-
-    return properties
+def get_properties(config):
+    """Get radius and modulus properties based on config."""
+    return {
+        'piece_radii': config.get_piece_radii(),
+        'neighbor_modulus': config.get_neighbor_modulus(),
+        'layer_modulus': config.get_layer_modulus(),
+    }
 
 
-# make particle-spring model
-def make_model():
-    freq = 2**(LAYERS - 2)
+def make_model(config):
+    """Create the particle-spring model."""
+    freq = 2**(config.layers - 2)
 
-    properties = get_properties()
+    properties = get_properties(config)
     scales = properties['piece_radii']
     neighbor_modulus = properties['neighbor_modulus']
     layer_modulus = properties['layer_modulus']
@@ -97,35 +82,29 @@ def make_model():
     colors = [color.blue, color.yellow, color.orange, color.red]
     counter = 0
 
-    points = empty(shape = (0, 3))
+    points = empty(shape=(0, 3))
     particles = []
     layers = [0]
 
-    # for each nested sphere
     while freq >= 1:
-        if DEBUG:
+        if config.debug:
             print("Layer " + str(counter) + " with freq " + str(int(freq)))
 
-        # get and scale points
         new_points = make_sphere(SHAPE, int(freq), GEO_M, GEO_N)
         new_points *= scales[counter]
-        points = append(points, new_points, axis = 0)
+        points = append(points, new_points, axis=0)
 
-        # make and append set of VPython "sphere" objects for this layer
-        new_particles = draw_sphere(new_points, colors[counter])
+        new_particles = draw_sphere(new_points, colors[counter], config)
         particles.extend(new_particles)
 
-        # keep track of indidces at which different layers start
         layers.append(layers[-1] + len(new_particles))
 
-        # connect layer to neighbors and outer layer if applicable
-        connect_neighbors(particles, layers[counter], neighbor_modulus[neighbor_counter])
+        connect_neighbors(particles, layers[counter], neighbor_modulus[neighbor_counter], config)
         neighbor_counter += 1
         if counter > 0:
-            connect_layers(particles, layers, layer_modulus[layer_counter])
+            connect_layers(particles, layers, layer_modulus[layer_counter], config)
             layer_counter += 1
 
-        # set values for the next loop
         if freq == 1:
             freq = 0
         else:
@@ -134,48 +113,45 @@ def make_model():
 
     # last iteration for freq == -1 (single point) is a special case
     new_points = array([[0., 0., 0.]])
-    new_particles = draw_sphere(new_points, colors[counter], LABEL)
+    new_particles = draw_sphere(new_points, colors[counter], config, config.labels)
     particles.extend(new_particles)
     layers.append(layers[-1] + len(new_particles))
-    connect_layers(particles, layers, layer_modulus[layer_counter])
+    connect_layers(particles, layers, layer_modulus[layer_counter], config)
 
     return particles
 
-# make the array of curves for the particle
-def make_curves(particles):
+
+def make_curves(particles, config):
+    """Create visual curves representing spring connections."""
     curves = []
 
-    # at every spot in the array, make another array to hold curves
     for outer in range(len(particles)):
         particle = particles[outer]
         curves.append([])
 
         for spring in particle.springs:
-
-            # determine color of curve
             curve_color = color.magenta
             if spring.relation == "neighbor":
                 curve_color = particle.color
 
-            curves[outer].append(curve(pos = [particle.pos, particles[spring.neighbor].pos],
-                                radius = CURVE_RADIUS, color = curve_color))
+            curves[outer].append(curve(pos=[particle.pos, particles[spring.neighbor].pos],
+                                       radius=config.curve_radius, color=curve_color))
 
     return curves
 
-# reset
-def reset():
 
+def reset(config):
+    """Initialize or reset the simulation state."""
     scene_info = {}
 
-    # make the particle and club
-    particles = make_model()
-    club_visual = box(length = CLUB_DEPTH, width = CLUB_SIDE, height = CLUB_SIDE,
-                      color = CLUB_COLOR, pos = CLUB_R0)
-    club = Club(club_visual, CLUB_V0)
-    get_club_plane(club)
+    particles = make_model(config)
+    club_visual = box(length=config.club_depth, width=config.club_side, height=config.club_side,
+                      color=CLUB_COLOR, pos=config.club_r0)
+    club = Club(club_visual, config.club_v0)
+    get_club_plane(club, config)
 
-    if CURVES: # make curves if drawing curves
-        curves = make_curves(particles)
+    if config.curves:
+        curves = make_curves(particles, config)
         scene_info['curves'] = curves
 
     scene_info['particles'] = particles
@@ -183,83 +159,80 @@ def reset():
 
     return scene_info
 
-# end initialization
-##################################################################
-
 ##################################################################
 ## SIMULATION
 ##################################################################
 
-# driver
 def main_loop():
+    """Main simulation loop."""
+    # Parse CLI args and create config
+    config = create_config()
 
-    # set time variables
+    # Setup scene
+    setup_scene(config)
+
+    # Set time variables
     t = 0
-    dt_basis = DT_BASIS
-    dt = dt_basis
+    dt = config.timestep
 
-    # get variables from initialization
-    scene_info = reset()
+    # Get variables from initialization
+    scene_info = reset(config)
     particles = scene_info['particles']
     club = scene_info['club']
     curves = []
-    time = label(pos = particles[-1].pos + vector(-RADIUS, 1.7 * RADIUS, -1.5 * RADIUS),text = "t = " + str(t),
-                 color = color.black)
-    if CURVES:
+    time = label(pos=particles[-1].pos + vector(-config.ball_radius, 1.7 * config.ball_radius, -1.5 * config.ball_radius),
+                 text="t = " + str(t), color=color.black)
+    if config.curves:
         curves = scene_info['curves']
 
-    # set up graphs for plotting
-    graphs = setup_graphs()
+    # Set up graphs for plotting
+    graphs = setup_graphs(config)
 
-    # data to keep track of for plotting
+    # Data to keep track of for plotting
     centers = []
     changes = array([])
     omegas = array([])
     last_vec = vector(0, 0, 0)
 
-    # set loop variables
-    running = not DEBUG
+    # Set loop variables
+    running = not config.debug
     last_stroke = ""
     particles[11].color = color.black
-    particles[11].radius = PARTICLE_RADIUS  * 2
+    particles[11].radius = config.particle_radius * 2
 
     # Track key state for edge detection
     prev_keys = set()
 
     while True:
-        rate(100)  # Control animation speed and allow browser updates
+        rate(100)
 
-        keys = set(keysdown()) # keypress detection
-        new_keys = keys - prev_keys  # keys just pressed this frame
+        keys = set(keysdown())
+        new_keys = keys - prev_keys
         prev_keys = keys
 
-        if PLAY_STROKE in new_keys: # play/pause (toggle)
+        if PLAY_STROKE in new_keys:
             running = not running
             last_stroke = PLAY_STROKE
 
-        elif STEP_STROKE in new_keys: # step
+        elif STEP_STROKE in new_keys:
             running = True
             last_stroke = STEP_STROKE
 
-        elif BREAK_STROKE in new_keys: # break
+        elif BREAK_STROKE in new_keys:
             break
 
-        if running: # animate
-
-            # update scene properties
+        if running:
             scene.center = particles[-1].pos
-            animate(club, particles, curves, time, t, dt)
+            animate(club, particles, curves, time, t, dt, config)
 
-            # update quantities that have been modified in plot
-            plot_info = plot(particles, centers, changes, omegas, last_vec, t, dt, graphs)
+            plot_info = plot(particles, centers, changes, omegas, last_vec, t, dt, graphs, config)
             last_vec = plot_info['current_vec']
             changes = plot_info['changes']
             omegas = plot_info['omegas']
             t += dt
 
-            # handle keystrokes and messages
             if last_stroke == STEP_STROKE:
-                print("step complete", end = "\n\n")
+                print("step complete", end="\n\n")
                 running = False
 
             elif last_stroke == PLAY_STROKE:
@@ -267,20 +240,17 @@ def main_loop():
 
             last_stroke = ""
 
-    # post processing
-    if VELOCITIES:
+    # Post processing
+    if config.velocity_graph:
         collision = changes[1] - changes[0]
         remove_first = changes[1:]
         diffs = ediff1d(remove_first)
         print("collision is " + str(collision) + " average of diffs is " + str(average(diffs)))
         print("velocity is " + str(plot_info['vcom']))
 
-    if SPIN:
+    if config.spin_graph:
         print("omega is " + str(average(omegas)))
 
-# end simulation
-##################################################################
 
 if __name__ == '__main__':
     main_loop()
-
