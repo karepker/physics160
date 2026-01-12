@@ -68,7 +68,7 @@ def get_properties():
     piece_radii = []
     neighbor_modulus = []
     layer_modulus = []
-    
+
     # if a ball is given
     if USE_BALL:
         properties['piece_radii'] = PIECE_RADII
@@ -76,7 +76,7 @@ def get_properties():
         properties['layer_modulus'] = LAYER_MODULUS
 
     # default values
-    else:   
+    else:
         properties['piece_radii'] = linspace(1.0, 0.0, num = LAYERS) * RADIUS
         properties['neighbor_modulus'] = DEFAULT_NEIGHBOR_MODULUS
         properties['layer_modulus'] = DEFAULT_LAYER_MODULUS
@@ -96,16 +96,16 @@ def make_model():
     layer_counter = 0
     colors = [color.blue, color.yellow, color.orange, color.red]
     counter = 0
-    
+
     points = empty(shape = (0, 3))
     particles = []
     layers = [0]
-    
+
     # for each nested sphere
     while freq >= 1:
         if DEBUG:
             print("Layer " + str(counter) + " with freq " + str(int(freq)))
-        
+
         # get and scale points
         new_points = make_sphere(SHAPE, int(freq), GEO_M, GEO_N)
         new_points *= scales[counter]
@@ -117,14 +117,14 @@ def make_model():
 
         # keep track of indidces at which different layers start
         layers.append(layers[-1] + len(new_particles))
-                          
+
         # connect layer to neighbors and outer layer if applicable
         connect_neighbors(particles, layers[counter], neighbor_modulus[neighbor_counter])
         neighbor_counter += 1
         if counter > 0:
             connect_layers(particles, layers, layer_modulus[layer_counter])
             layer_counter += 1
-        
+
         # set values for the next loop
         if freq == 1:
             freq = 0
@@ -149,14 +149,14 @@ def make_curves(particles):
     for outer in range(len(particles)):
         particle = particles[outer]
         curves.append([])
-        
+
         for spring in particle.springs:
 
             # determine color of curve
             curve_color = color.magenta
             if spring.relation == "neighbor":
                 curve_color = particle.color
-            
+
             curves[outer].append(curve(pos = [particle.pos, particles[spring.neighbor].pos],
                                 radius = CURVE_RADIUS, color = curve_color))
 
@@ -222,7 +222,7 @@ def main_loop():
     last_stroke = ""
     particles[11].color = color.black
     particles[11].radius = PARTICLE_RADIUS  * 2
-    
+
     # Track key state for edge detection
     prev_keys = set()
 
@@ -270,7 +270,7 @@ def main_loop():
     # post processing
     if VELOCITIES:
         collision = changes[1] - changes[0]
-        remove_first = changes[1:]        
+        remove_first = changes[1:]
         diffs = ediff1d(remove_first)
         print("collision is " + str(collision) + " average of diffs is " + str(average(diffs)))
         print("velocity is " + str(plot_info['vcom']))
@@ -281,6 +281,6 @@ def main_loop():
 # end simulation
 ##################################################################
 
-# run it like a boss
-main_loop()
+if __name__ == '__main__':
+    main_loop()
 
