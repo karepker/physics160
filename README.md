@@ -34,7 +34,7 @@ The simulation opens in your browser via VPython.
 
 ## Configuration
 
-Key simulation parameters can be adjusted at the top of `project_geo.py`:
+Key simulation parameters can be adjusted in `constants.py`:
 * Golf ball properties (mass, radius, Young's modulus)
 * Club properties (velocity, loft angle)
 * Simulation settings (timestep, damping)

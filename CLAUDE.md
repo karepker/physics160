@@ -22,13 +22,18 @@ The simulation opens in a browser via VPython. Controls:
 
 ## Project Structure
 
-- `project_geo.py` - Main simulation code
-- `PROJECT_SPEC.md` - Future refactoring plans (split into modules)
+- `project_geo.py` - Main entry point and simulation loop
+- `constants.py` - All configuration constants
+- `models.py` - Data classes (Spring, Particle, Club)
+- `geodesic.py` - Geodesic sphere generation (Adrian Rossiter's code)
+- `physics.py` - Physics calculations and animation functions
+- `plotting.py` - Graph setup and plotting functions
 
 ## Code Architecture
 
-The simulation uses wrapper classes to separate physics state from VPython visuals:
+The simulation uses wrapper classes (in `models.py`) to separate physics state from VPython visuals:
 - `Particle` - wraps VPython `sphere` with physics properties (velocity, mass, momentum, springs)
 - `Club` - wraps VPython `box` with physics properties (velocity, norm, point)
+- `Spring` - represents spring connections between particles
 
-Key constants can be adjusted at the top of `project_geo.py` (mass, radius, Young's modulus, club velocity, etc.).
+Key constants can be adjusted in `constants.py` (mass, radius, Young's modulus, club velocity, etc.).
