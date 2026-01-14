@@ -83,3 +83,7 @@ Internal constants (geodesic parameters, tolerances) remain in `constants.py`
 ## Results and more detailed information
 
 See report/Report.pdf for a detailed report of how the simulation was created and results
+
+## Third-Party Code
+
+This project includes adapted code from the [Antiprism](https://github.com/antiprism/antiprism_python) project by Adrian Rossiter for geodesic sphere generation (`geodesic.py`). The original code is licensed under the MIT License - see [LICENSES/antiprism.txt](LICENSES/antiprism.txt).
