@@ -46,22 +46,12 @@ pipenv run python project_geo.py --help
 |------|-------------|---------|
 | `-v, --club-velocity` | Club impact speed (m/s) | 64.82 |
 | `-l, --loft` | Club loft angle (degrees) | 0 |
-| `-r, --ball-radius` | Golf ball radius (m) | 0.021 |
-| `-m, --ball-mass` | Total ball mass (kg) | 0.04593 |
-| `-d, --damping` | Force damping coefficient | 0.78 |
-| `-t, --timestep` | Physics timestep (s) | 1e-6 |
-| `-p, --pieces` | Number of ball layers (1-3) | 2 |
-| `--use-callaway` | Use Callaway ball properties | off |
 
 ### Visualization Options
 
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--debug` | Enable debug console output | off |
-| `--labels` | Show particle labels | off |
-| `--curves / --no-curves` | Show spring connections | on |
-| `--spin-graph` | Enable spin rate graph | off |
-| `--velocity-graph` | Enable velocity graph | off |
 | `--width` | Canvas width (pixels) | 700 |
 | `--height` | Canvas height (pixels) | 700 |
 
@@ -71,14 +61,11 @@ pipenv run python project_geo.py --help
 # Run with slower club speed and 10-degree loft
 pipenv run python project_geo.py --club-velocity 50 --loft 10
 
-# Enable debug mode with velocity graphing
-pipenv run python project_geo.py --debug --velocity-graph
-
-# Use Callaway ball properties, hide spring curves
-pipenv run python project_geo.py --use-callaway --no-curves
+# Enable debug mode
+pipenv run python project_geo.py --debug
 ```
 
-Internal constants (geodesic parameters, tolerances) remain in `constants.py`
+Internal constants (ball mass, damping, timestep, etc.) can be adjusted in `constants.py`
 
 ## Results and more detailed information
 

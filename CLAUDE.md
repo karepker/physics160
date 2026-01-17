@@ -59,3 +59,12 @@ The simulation uses wrapper classes (in `models.py`) to separate physics state f
 - `Spring` - represents spring connections between particles
 
 Key constants can be adjusted in `constants.py` (ball mass, damping, timestep, Young's modulus, etc.).
+
+## Documentation Requirements
+
+When making backwards-incompatible changes, update `README.md` to reflect those changes. This includes:
+- Adding, removing, or renaming CLI flags
+- Changing default values
+- Modifying keyboard controls
+- Changing setup or installation steps
+- Altering the project structure
