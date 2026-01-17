@@ -52,7 +52,7 @@ def change_in_sign(first, second):
         return True
 
 
-def plot(particles, centers, changes, omegas, last_vec, t, dt, graphs, config):
+def plot(particles, centers, changes, omegas, last_vec, t, dt, graphs):
     """
     Update plots with current simulation state.
 
@@ -65,7 +65,6 @@ def plot(particles, centers, changes, omegas, last_vec, t, dt, graphs, config):
         t: Current time
         dt: Time step
         graphs: Dict with 'v_com', 'spin', 'v_center' gdots objects
-        config: Config object with simulation parameters
 
     Returns:
         Dict with rcom, vcom, current_vec, changes, omegas
@@ -79,7 +78,7 @@ def plot(particles, centers, changes, omegas, last_vec, t, dt, graphs, config):
     current_vec = norm(rcom - edge.pos)
 
     # Spin plotting
-    if config.spin_graph and len(changes) > 5:
+    if len(changes) > 5:
         dtheta = acos(dot(last_vec, current_vec))
         if dot(cross(last_vec, current_vec), vector(0, 0, 1)) < 0:
             dtheta = -dtheta
@@ -96,9 +95,8 @@ def plot(particles, centers, changes, omegas, last_vec, t, dt, graphs, config):
         if change_in_sign(old_slope, slope):
             changes = append(changes, t)
 
-    if config.velocity_graph:
-        graphs['v_com'].plot(pos=(t, mag(vcom)))
-        graphs['v_center'].plot(pos=(t, mag(center.velocity)))
+    graphs['v_com'].plot(pos=(t, mag(vcom)))
+    graphs['v_center'].plot(pos=(t, mag(center.velocity)))
 
     return {
         'rcom': rcom,

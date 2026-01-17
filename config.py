@@ -14,24 +14,19 @@ from numpy import linspace
 class Config:
     """Configuration object holding all simulation parameters."""
 
-    # Primary simulation parameters (from CLI)
+    # Simulation parameters (from CLI)
     club_velocity: float
     loft: float
-    ball_radius: float
-    ball_mass: float
-    damping: float
-    timestep: float
-    pieces: int
-    use_callaway: bool
 
     # Visualization options (from CLI)
     debug: bool
-    labels: bool
-    curves: bool
-    spin_graph: bool
-    velocity_graph: bool
     width: int
     height: int
+
+    # Internal parameters (from constants)
+    ball_radius: float
+    ball_mass: float
+    pieces: int
 
     # Derived properties
     @property
@@ -81,23 +76,16 @@ class Config:
 
     def get_piece_radii(self) -> List[float]:
         """Get radii for each ball layer."""
-        from constants import PIECE_RADII
-        if self.use_callaway:
-            return PIECE_RADII
         return list(linspace(1.0, 0.0, num=self.layers) * self.ball_radius)
 
     def get_neighbor_modulus(self) -> List[float]:
         """Get spring constants for intra-layer connections."""
-        from constants import NEIGHBOR_MODULUS, DEFAULT_NEIGHBOR_MODULUS
-        if self.use_callaway:
-            return NEIGHBOR_MODULUS
+        from constants import DEFAULT_NEIGHBOR_MODULUS
         return DEFAULT_NEIGHBOR_MODULUS
 
     def get_layer_modulus(self) -> List[float]:
         """Get spring constants for inter-layer connections."""
-        from constants import LAYER_MODULUS, DEFAULT_LAYER_MODULUS
-        if self.use_callaway:
-            return LAYER_MODULUS
+        from constants import DEFAULT_LAYER_MODULUS
         return DEFAULT_LAYER_MODULUS
 
 
@@ -120,36 +108,6 @@ def parse_args() -> argparse.Namespace:
         type=float, default=0,
         help="Club loft angle in degrees"
     )
-    sim_group.add_argument(
-        "-r", "--ball-radius",
-        type=float, default=0.021,
-        help="Golf ball radius in meters"
-    )
-    sim_group.add_argument(
-        "-m", "--ball-mass",
-        type=float, default=0.04593,
-        help="Total ball mass in kg"
-    )
-    sim_group.add_argument(
-        "-d", "--damping",
-        type=float, default=0.78,
-        help="Force damping coefficient"
-    )
-    sim_group.add_argument(
-        "-t", "--timestep",
-        type=float, default=1e-6,
-        help="Physics timestep in seconds"
-    )
-    sim_group.add_argument(
-        "-p", "--pieces",
-        type=int, default=2, choices=[1, 2, 3],
-        help="Number of ball layers (1-3)"
-    )
-    sim_group.add_argument(
-        "--use-callaway",
-        action="store_true", default=False,
-        help="Use Callaway golf ball properties"
-    )
 
     # Visualization options
     vis_group = parser.add_argument_group("Visualization Options")
@@ -157,26 +115,6 @@ def parse_args() -> argparse.Namespace:
         "--debug",
         action="store_true", default=False,
         help="Enable debug console output"
-    )
-    vis_group.add_argument(
-        "--labels",
-        action="store_true", default=False,
-        help="Show particle labels in 3D view"
-    )
-    vis_group.add_argument(
-        "--curves", "--no-curves",
-        action=argparse.BooleanOptionalAction, default=True,
-        help="Show/hide spring connections between particles"
-    )
-    vis_group.add_argument(
-        "--spin-graph",
-        action="store_true", default=False,
-        help="Enable spin rate graph"
-    )
-    vis_group.add_argument(
-        "--velocity-graph",
-        action="store_true", default=False,
-        help="Enable velocity graph"
     )
     vis_group.add_argument(
         "--width",
@@ -194,23 +132,18 @@ def parse_args() -> argparse.Namespace:
 
 def create_config(args: argparse.Namespace = None) -> Config:
     """Create a Config object from parsed arguments or defaults."""
+    from constants import BALL_RADIUS, BALL_MASS, PIECES
+
     if args is None:
         args = parse_args()
 
     return Config(
         club_velocity=args.club_velocity,
         loft=args.loft,
-        ball_radius=args.ball_radius,
-        ball_mass=args.ball_mass,
-        damping=args.damping,
-        timestep=args.timestep,
-        pieces=args.pieces,
-        use_callaway=args.use_callaway,
         debug=args.debug,
-        labels=args.labels,
-        curves=args.curves,
-        spin_graph=args.spin_graph,
-        velocity_graph=args.velocity_graph,
         width=args.width,
         height=args.height,
+        ball_radius=BALL_RADIUS,
+        ball_mass=BALL_MASS,
+        pieces=PIECES,
     )

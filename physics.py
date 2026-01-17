@@ -4,7 +4,7 @@
 
 from vpython import vector, mag, mag2, norm, dot, cos, sin, tan, atan, radians
 
-from constants import VERTS, NEIGHBOR_TOLERANCE, CONTACT_TOLERANCE
+from constants import VERTS, NEIGHBOR_TOLERANCE, CONTACT_TOLERANCE, DAMPING
 from models import Spring
 
 
@@ -104,7 +104,7 @@ def determine_update_method(particles, club, dt, config):
         Fnet = vector(0, 0, 0)
         for force in forces:
             Fnet += force
-        Fnet *= config.damping
+        Fnet *= DAMPING
 
         calc_particle_pos = particle.pos + ((particle.momentum + (Fnet * dt)) / particle.mass * dt)
         calc_club_point = club.pos + club.velocity * dt
@@ -166,6 +166,4 @@ def animate(club, particles, curves, time, t, dt, config):
     determine_update_method(particles, club, dt, config)
     animate_club(club, dt)
     animate_particles(particles, club, dt, config)
-
-    if config.curves:
-        draw_curves(particles, curves)
+    draw_curves(particles, curves)

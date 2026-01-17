@@ -11,7 +11,7 @@ from numpy import array, append, empty, ediff1d, average
 from config import create_config
 from constants import (
     PLAY_STROKE, STEP_STROKE, BREAK_STROKE,
-    PARTICLE_V0,
+    PARTICLE_V0, TIMESTEP,
     SHAPE, GEO_M, GEO_N,
     SCENE_BACKGROUND, SCENE_FOREGROUND,
     CLUB_COLOR,
@@ -41,9 +41,8 @@ def setup_scene(config):
 ## INITIALIZATIONS
 ##################################################################
 
-def draw_sphere(points, particle_color, config, add_label=False):
+def draw_sphere(points, particle_color, config):
     """Create Particle objects from points array."""
-    labels = []
     particles = []
 
     for i in range(points.shape[0]):
@@ -53,9 +52,6 @@ def draw_sphere(points, particle_color, config, add_label=False):
                         color=particle_color)
         particle = Particle(visual, PARTICLE_V0, config.particle_mass)
         particles.append(particle)
-
-        if config.debug and config.labels:
-            labels.append(label(pos=particles[i].pos, text=str(int(i))))
 
     return particles
 
@@ -113,7 +109,7 @@ def make_model(config):
 
     # last iteration for freq == -1 (single point) is a special case
     new_points = array([[0., 0., 0.]])
-    new_particles = draw_sphere(new_points, colors[counter], config, config.labels)
+    new_particles = draw_sphere(new_points, colors[counter], config)
     particles.extend(new_particles)
     layers.append(layers[-1] + len(new_particles))
     connect_layers(particles, layers, layer_modulus[layer_counter], config)
@@ -142,22 +138,18 @@ def make_curves(particles, config):
 
 def reset(config):
     """Initialize or reset the simulation state."""
-    scene_info = {}
-
     particles = make_model(config)
     club_visual = box(length=config.club_depth, width=config.club_side, height=config.club_side,
                       color=CLUB_COLOR, pos=config.club_r0)
     club = Club(club_visual, config.club_v0)
     get_club_plane(club, config)
+    curves = make_curves(particles, config)
 
-    if config.curves:
-        curves = make_curves(particles, config)
-        scene_info['curves'] = curves
-
-    scene_info['particles'] = particles
-    scene_info['club'] = club
-
-    return scene_info
+    return {
+        'particles': particles,
+        'club': club,
+        'curves': curves,
+    }
 
 ##################################################################
 ## SIMULATION
@@ -173,17 +165,15 @@ def main_loop():
 
     # Set time variables
     t = 0
-    dt = config.timestep
+    dt = TIMESTEP
 
     # Get variables from initialization
     scene_info = reset(config)
     particles = scene_info['particles']
     club = scene_info['club']
-    curves = []
+    curves = scene_info['curves']
     time = label(pos=particles[-1].pos + vector(-config.ball_radius, 1.7 * config.ball_radius, -1.5 * config.ball_radius),
                  text="t = " + str(t), color=color.black)
-    if config.curves:
-        curves = scene_info['curves']
 
     # Set up graphs for plotting
     graphs = setup_graphs(config)
@@ -225,7 +215,7 @@ def main_loop():
             scene.center = particles[-1].pos
             animate(club, particles, curves, time, t, dt, config)
 
-            plot_info = plot(particles, centers, changes, omegas, last_vec, t, dt, graphs, config)
+            plot_info = plot(particles, centers, changes, omegas, last_vec, t, dt, graphs)
             last_vec = plot_info['current_vec']
             changes = plot_info['changes']
             omegas = plot_info['omegas']
@@ -241,15 +231,12 @@ def main_loop():
             last_stroke = ""
 
     # Post processing
-    if config.velocity_graph:
-        collision = changes[1] - changes[0]
-        remove_first = changes[1:]
-        diffs = ediff1d(remove_first)
-        print("collision is " + str(collision) + " average of diffs is " + str(average(diffs)))
-        print("velocity is " + str(plot_info['vcom']))
-
-    if config.spin_graph:
-        print("omega is " + str(average(omegas)))
+    collision = changes[1] - changes[0]
+    remove_first = changes[1:]
+    diffs = ediff1d(remove_first)
+    print("collision is " + str(collision) + " average of diffs is " + str(average(diffs)))
+    print("velocity is " + str(plot_info['vcom']))
+    print("omega is " + str(average(omegas)))
 
 
 if __name__ == '__main__':
